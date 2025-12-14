@@ -18,6 +18,7 @@ local FATIGUE_MAX_ABSORBED_BY_LEVEL = {
     [5] = 0.2
 }
 
+---@param player IsoPlayer
 function Adrenaline.shouldPlayerUpdate(player)
     local counter = Adrenaline.playerUpdateCounters[player];
     if not counter then
@@ -33,6 +34,7 @@ function Adrenaline.shouldPlayerUpdate(player)
     end
 end
 
+---@param player IsoPlayer
 function Adrenaline.onPlayerUpdate(player)
     if not Adrenaline.shouldPlayerUpdate(player) then
         return;
@@ -42,7 +44,8 @@ function Adrenaline.onPlayerUpdate(player)
     FATIGUE_RELEASE_RATE = SandboxVars.Adrenaline.FatigueReleaseRate / 10000.0;
     FATIGUE_MULTIPLIER = SandboxVars.Adrenaline.FatigueMultiplier;
 
-    local panicLevel = player:getMoodles():getMoodleLevel(MoodleType.Panic);
+    local moodles = player:getMoodles();
+    local panicLevel = moodles:getMoodleLevel(MoodleType.PANIC);
     local maxAbsorb = FATIGUE_MAX_ABSORBED_BY_LEVEL[panicLevel];
 
     local playerData = player:getModData();
@@ -60,44 +63,52 @@ function Adrenaline.onPlayerUpdate(player)
     end
 end
 
+---@param player IsoPlayer
+---@param playerData any
 function Adrenaline.releaseAllFatigue(player, playerData)
     local storedFatigue = playerData.adrenalineFatigue;
     if not storedFatigue or storedFatigue == 0 then
         return;
     end
 
-    local currentFatigue = player:getStats():getFatigue();
-    player:getStats():setFatigue(currentFatigue + (storedFatigue * FATIGUE_MULTIPLIER));
+    local currentFatigue = player:getStats():get(CharacterStat.FATIGUE);
+    player:getStats():set(CharacterStat.FATIGUE, currentFatigue + (storedFatigue * FATIGUE_MULTIPLIER));
     playerData.adrenalineFatigue = 0;
 end
 
+---@param player IsoPlayer
+---@param playerData any
 function Adrenaline.releaseFatigue(player, playerData)
     local storedFatigue = playerData.adrenalineFatigue;
     if not storedFatigue or storedFatigue == 0 then
         return;
     end
 
-    local currentFatigue = player:getStats():getFatigue();
+    local currentFatigue = player:getStats():get(CharacterStat.FATIGUE);
     if currentFatigue >= 1 then
         return;
     end
 
     if storedFatigue <= FATIGUE_RELEASE_RATE then      
-        player:getStats():setFatigue(currentFatigue + (storedFatigue * FATIGUE_MULTIPLIER));
+        player:getStats():set(CharacterStat.FATIGUE, currentFatigue + (storedFatigue * FATIGUE_MULTIPLIER));
         playerData.adrenalineFatigue = 0;
     else
-        player:getStats():setFatigue(currentFatigue + (FATIGUE_RELEASE_RATE * FATIGUE_MULTIPLIER));
+        player:getStats():set(CharacterStat.FATIGUE, currentFatigue + (FATIGUE_RELEASE_RATE * FATIGUE_MULTIPLIER));
         playerData.adrenalineFatigue = storedFatigue - FATIGUE_RELEASE_RATE;
     end
 end
 
+---comment
+---@param player IsoPlayer
+---@param playerData any
+---@param panicLevel number
 function Adrenaline.absorbFatigue(player, playerData, panicLevel)
     local storedFatigue = playerData.adrenalineFatigue;
     if not storedFatigue then
         storedFatigue = 0;
     end
 
-    local currentFatigue = player:getStats():getFatigue();
+    local currentFatigue = player:getStats():get(CharacterStat.FATIGUE);
     if currentFatigue < 0.55 then
         return;
     end
@@ -116,13 +127,15 @@ function Adrenaline.absorbFatigue(player, playerData, panicLevel)
         fatigueToAbsorb = currentFatigue;
     end
 
-    player:getStats():setFatigue(currentFatigue - fatigueToAbsorb);
+    player:getStats():set(CharacterStat.FATIGUE, currentFatigue - fatigueToAbsorb);
     playerData.adrenalineFatigue = storedFatigue + fatigueToAbsorb;
 end
 
 function Adrenaline.setup()
     if not isClient() or getServerOptions():getBoolean("SleepAllowed") then
-        Events.OnPlayerUpdate.Add(Adrenaline.onPlayerUpdate);
+        Events.OnPlayerUpdate.Add(function(player)
+            Adrenaline.onPlayerUpdate(player);
+        end);
     end
 end
 
